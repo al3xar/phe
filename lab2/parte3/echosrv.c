@@ -11,6 +11,7 @@ unsigned char global[1024];
 void vulnerable(unsigned char *msg, int len)
 {
   char buf[128];
+  puts("Conexion establecida.");
   memcpy(buf, msg, len);
   printf("Recibido %d bytes :", len);
   for (size_t i = 0; i < len; i++)
@@ -43,7 +44,7 @@ int main(void)
   {
     int c = accept(s, NULL, NULL);
     pid_t pid = fork();
-    if (pid = 0)
+    if (pid == 0)
     { // proceso hijo
       close(s);
       handle(c);
