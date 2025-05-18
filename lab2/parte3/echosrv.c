@@ -10,15 +10,15 @@ unsigned char global[1024];
 
 void vulnerable(unsigned char *msg, int len)
 {
-  char buf[128];
-  puts("Conexion establecida.");
+  char buf[64];
+  // puts("Conexion establecida.");
   memcpy(buf, msg, len);
-  printf("Recibido %d bytes :", len);
-  for (size_t i = 0; i < len; i++)
-  {
-    printf("%02x", msg[i]);
-  }
-  printf("\n");
+  // printf("Recibido %d bytes :", len);
+  // for (size_t i = 0; i < len; i++)
+  // {
+  //   printf("%02x", msg[i]);
+  // }
+  // printf("\n");
 }
 
 void handle(int client)
