@@ -8,16 +8,23 @@
 
 unsigned char global[1024];
 
+void ajuste_stack()
+{
+    __asm__ volatile("pop %r15");
+    __asm__ volatile("pop %rsi");
+    __asm__ volatile("pop %rdx");
+}
+
 void vulnerable(unsigned char *msg, int len)
 {
     char buf[64];
     memcpy(buf, msg, len);
-    printf("Recibido %d bytes: ", len);
-    for (size_t i = 0; i < len; i++)
-    {
-        printf("%02x ", msg[i]);
-    }
-    printf("\n");
+    // printf("Recibido %d bytes: ", len);
+    // for (size_t i = 0; i < len; i++)
+    // {
+    //     printf("%02x ", msg[i]);
+    // }
+    // printf("\n");
 }
 
 void handle(int client)
@@ -27,6 +34,7 @@ void handle(int client)
     write(client, global, r);
     close(client);
     puts("Conexión cerrada.");
+    ajuste_stack();
 }
 
 int main(void)

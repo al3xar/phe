@@ -6,4 +6,4 @@
 # - NX habilitado (por defecto)
 # - ASLR deshabilitado
 
-gcc -g -o echosrv64 echosrv64.c
+gcc -ggdb -fstack-protector -O0 -o echosrv64 echosrv64.c
